@@ -1,0 +1,63 @@
+import requests
+import pandas as pd
+from bs4 import BeautifulSoup
+
+# ======================
+# 1. 日経225銘柄リスト取得（Tradersから）
+# ======================
+def get_nikkei225_list():
+    url = "https://www.traders.co.jp/market_jp/nikkei225"
+    res = requests.get(url)
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    companies = []
+    for row in soup.select("table.tbl-data tr"):
+        cols = row.select("td")
+        if len(cols) > 0:
+            a_tag = cols[0].find("a")
+            if a_tag:
+                company_name = a_tag.get_text(strip=True)
+                detail_url = "https://www.traders.co.jp" + a_tag["href"]
+                companies.append({"company": company_name, "detail_url": detail_url})
+    return companies
+
+# ======================
+# 2. 銘柄詳細ページから公式HPを取得
+# ======================
+def get_official_site(detail_url):
+    try:
+        res = requests.get(detail_url, timeout=10)
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        # 「会社概要」テーブルから公式サイトリンクを探す
+        for a in soup.select("a"):
+            href = a.get("href", "")
+            if href.startswith("http") and "traders.co.jp" not in href:
+                return href
+    except Exception:
+        return None
+    return None
+
+# ======================
+# 3. メイン処理
+# ======================
+def main():
+    companies = get_nikkei225_list()
+    print(f"=== 銘柄数: {len(companies)} ===")
+
+    results = []
+    for c in companies:
+        official_url = get_official_site(c["detail_url"])
+        print(f"{c['company']} → {official_url}")
+        results.append({
+            "company": c["company"],
+            "official_url": official_url
+        })
+
+    # CSVに保存
+    df = pd.DataFrame(results)
+    df.to_csv("official_sites.csv", index=False, encoding="utf-8-sig")
+    print("✅ CSV出力完了: official_sites.csv")
+
+if __name__ == "__main__":
+    main()

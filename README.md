@@ -1,1 +1,4 @@
-# cloudworks_scraping_task
+#============================================
+必要ライブラリをインストール
+#============================================
+pip install python-dotenv google-generativeai
