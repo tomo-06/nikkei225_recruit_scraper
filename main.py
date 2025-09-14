@@ -62,3 +62,58 @@ def get_nikkei225_list():
     return company_list
 
 
+# ======================
+# 2. 各企業の採用ページ取得
+# ======================
+
+def get_recruit_page(base_url):
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver.get(base_url)
+        time.sleep(3)  # JS描画待ち
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        driver.quit()
+        keywords = ["採用", "新卒", "recruit", "saiyo", "career"]
+        candidates = []
+        for a in soup.find_all("a", href=True):
+            text = a.get_text(strip=True).replace("\u3000", " ").lower()
+            href = a["href"].lower()
+            if any(kw in text for kw in keywords) or any(kw in href for kw in keywords):
+                candidates.append(urljoin(base_url, a["href"]))
+        if candidates:
+            return candidates[0]
+    except Exception as e:
+        print(f"Error fetching {base_url}: {e}")
+
+    return None
+
+
+# ======================
+# 実行処理
+# ======================
+if __name__ == "__main__":
+    # ① 銘柄リスト取得
+    nikkei225_list = get_nikkei225_list()
+
+    # ② 採用ページ探索
+    results = []
+    for company in nikkei225_list:
+        name = company["銘柄名"]
+        official_url = company["公式HP"]
+
+        recruit_url = None
+        if official_url:
+            recruit_url = get_recruit_page(official_url)
+
+        results.append({
+            "銘柄名": name,
+            "公式HP": official_url,
+            "新卒採用ページ": recruit_url if recruit_url else "Not Found"
+        })
+        print(f"{name}: {recruit_url}")
+
+    # ③ CSV出力
+    df = pd.DataFrame(results)
+    df.to_csv("nikkei225_recruit_list.csv", index=False, encoding="utf-8-sig")
+    print("新卒採用ページリストを保存しました！")
